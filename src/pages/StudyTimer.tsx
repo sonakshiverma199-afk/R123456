@@ -41,12 +41,14 @@ export default function StudyTimer() {
     setIsRunning(false);
     if (seconds > 0 && selectedSubject) {
       addStudySession(selectedSubject, seconds);
+      updateTodayCompletedMinutes();
     }
     setSeconds(0);
   };
 
   const handleSaveGoal = () => {
     setDailyGoal(goalMinutes);
+    updateTodayCompletedMinutes();
   };
 
   const dailyHours = getStudyHours(undefined, 'daily');
@@ -154,8 +156,8 @@ export default function StudyTimer() {
               <div className="flex items-center gap-2">
                 <input
                   type="number"
-                  value={dailyGoal}
-                  onChange={e => setDailyGoal(Number(e.target.value))}
+                  value={goalMinutes}
+                  onChange={e => setGoalMinutes(Number(e.target.value))}
                   className="flex-1 px-3 py-2 bg-dark-700 border border-dark-600 rounded-lg text-sm text-dark-200 focus:outline-none focus:border-accent"
                   min={1}
                   max={720}
@@ -167,11 +169,11 @@ export default function StudyTimer() {
               </button>
               <div className="mt-3">
                 <div className="flex justify-between text-xs text-dark-400 mb-1">
-                  <span>{Math.round(todayMinutes)} / {dailyGoal} min</span>
-                  <span>{Math.round(Math.min(100, (todayMinutes / dailyGoal) * 100))}%</span>
+                  <span>{Math.round(todayMinutes)} / {goalMinutes} min</span>
+                  <span>{Math.round(Math.min(100, (todayMinutes / goalMinutes) * 100))}%</span>
                 </div>
                 <div className="h-2 bg-dark-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${Math.min(100, (todayMinutes / dailyGoal) * 100)}%` }} />
+                  <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${Math.min(100, (todayMinutes / goalMinutes) * 100)}%` }} />
                 </div>
               </div>
             </div>
