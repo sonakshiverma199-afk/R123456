@@ -13,23 +13,25 @@ export default function Login() {
   const { login, signup } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (isLogin) {
-      if (login(email, password)) {
+      const result = await login(email, password);
+      if (result.success) {
         navigate('/');
       } else {
-        setError('Invalid email or password');
+        setError(result.error || 'Invalid email or password');
       }
     } else {
       if (!name.trim()) { setError('Name is required'); return; }
       if (!email.trim()) { setError('Email is required'); return; }
       if (password.length < 6) { setError('Password must be at least 6 characters'); return; }
-      if (signup(name, email, password)) {
+      const result = await signup(name, email, password);
+      if (result.success) {
         navigate('/');
       } else {
-        setError('Email already registered');
+        setError(result.error || 'Email already registered');
       }
     }
   };

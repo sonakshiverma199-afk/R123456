@@ -1,65 +1,120 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from '../types';
-import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '../lib/supabase';
+import { Session } from '@supabase/supabase-js';
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => boolean;
-  signup: (name: string, email: string, password: string) => boolean;
-  logout: () => void;
+  session: Session | null;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
   isAuthenticated: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('studyhub_current_user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+          password: '', // Not stored in Supabase
+          createdAt: session.user.created_at || new Date().toISOString(),
+        });
+      }
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session?.user) {
+        setUser({
+          id: session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+          password: '',
+          createdAt: session.user.created_at || new Date().toISOString(),
+        });
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const getUsers = (): User[] => {
-    const users = localStorage.getItem('studyhub_users');
-    return users ? JSON.parse(users) : [];
-  };
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  const saveUsers = (users: User[]) => {
-    localStorage.setItem('studyhub_users', JSON.stringify(users));
-  };
-
-  const login = (email: string, password: string): boolean => {
-    const users = getUsers();
-    const found = users.find(u => u.email === email && u.password === password);
-    if (found) {
-      setUser(found);
-      localStorage.setItem('studyhub_current_user', JSON.stringify(found));
-      return true;
+    if (error) {
+      return { success: false, error: error.message };
     }
-    return false;
+
+    if (data.user) {
+      setUser({
+        id: data.user.id,
+        email: data.user.email || '',
+        name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'User',
+        password: '',
+        createdAt: data.user.created_at || new Date().toISOString(),
+      });
+    }
+
+    return { success: true };
   };
 
-  const signup = (name: string, email: string, password: string): boolean => {
-    const users = getUsers();
-    if (users.find(u => u.email === email)) return false;
-    const newUser: User = { id: uuidv4(), name, email, password, createdAt: new Date().toISOString() };
-    users.push(newUser);
-    saveUsers(users);
-    setUser(newUser);
-    localStorage.setItem('studyhub_current_user', JSON.stringify(newUser));
-    return true;
+  const signup = async (name: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          name: name,
+        },
+      },
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    if (data.user) {
+      setUser({
+        id: data.user.id,
+        email: data.user.email || '',
+        name: name,
+        password: '',
+        createdAt: data.user.created_at || new Date().toISOString(),
+      });
+    }
+
+    return { success: true };
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setUser(null);
-    localStorage.removeItem('studyhub_current_user');
+    setSession(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, session, login, signup, logout, isAuthenticated: !!user, loading }}>
       {children}
     </AuthContext.Provider>
   );
